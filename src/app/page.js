@@ -1,65 +1,164 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import Link from 'next/link';
 
-export default function Home() {
+export default function Dashboard() {
+  const [comandas, setComandas] = useState([]);
+  const [filtroFase, setFiltroFase] = useState('todas');
+  const [filtroTipo, setFiltroTipo] = useState('todas');
+
+  useEffect(() => {
+    // Consulta en tiempo real de comandas no finalizadas
+    const q = query(
+      collection(db, 'Comandas'),
+      where('finalizado', '==', false),
+      orderBy('fechaEmision', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const comandasData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setComandas(comandasData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Filtrar comandas
+  const comandasFiltradas = comandas.filter(comanda => {
+    const cumpleFase = filtroFase === 'todas' || comanda.faseActual === filtroFase;
+    const cumpleTipo = filtroTipo === 'todas' || comanda.tipo === filtroTipo;
+    return cumpleFase && cumpleTipo;
+  });
+
+  const fases = ['analisis', 'lavado', 'planchado', 'embolsado'];
+  
+  const getColorFase = (fase) => {
+    const colores = {
+      analisis: 'badge-yellow',
+      lavado: 'badge-blue',
+      planchado: 'badge-purple',
+      embolsado: 'badge-green'
+    };
+    return colores[fase] || 'badge-secondary';
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '20px' }}>
+      <div className="container">
+        {/* Header */}
+        <div className="mb-8">
+          <h1>🧺 Lavandería El Cobre</h1>
+          <p style={{ color: '#6b7280' }}>Panel de Control - Operadores</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Filtros */}
+        <div className="card mb-6">
+          <div className="grid grid-2">
+            <div className="input-group">
+              <label className="label">Filtrar por Fase</label>
+              <select
+                value={filtroFase}
+                onChange={(e) => setFiltroFase(e.target.value)}
+                className="select"
+              >
+                <option value="todas">Todas las fases</option>
+                {fases.map(fase => (
+                  <option key={fase} value={fase}>
+                    {fase.charAt(0).toUpperCase() + fase.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="input-group">
+              <label className="label">Filtrar por Tipo</label>
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                className="select"
+              >
+                <option value="todas">Todos los tipos</option>
+                <option value="hotel">Hotel</option>
+                <option value="particular">Particular</option>
+              </select>
+            </div>
+          </div>
         </div>
-      </main>
+
+        {/* Estadísticas rápidas */}
+        <div className="grid grid-4 mb-6">
+          {fases.map(fase => {
+            const count = comandas.filter(c => c.faseActual === fase).length;
+            return (
+              <div key={fase} className="stat-card">
+                <div className="stat-number">{count}</div>
+                <div className="stat-label">{fase}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Lista de comandas */}
+        {comandasFiltradas.length === 0 ? (
+          <div className="card text-center">
+            <p style={{ color: '#6b7280' }}>No hay comandas pendientes</p>
+          </div>
+        ) : (
+          <div className="grid grid-3">
+            {comandasFiltradas.map(comanda => (
+              <Link
+                key={comanda.id}
+                href={`/fase/${comanda.faseActual}?comandaId=${comanda.id}`}
+                className="comanda-card"
+              >
+                {/* Código y tipo */}
+                <div className="comanda-header">
+                  <span className="comanda-codigo">{comanda.codigo}</span>
+                  <span className={`badge ${comanda.tipo === 'hotel' ? 'badge-orange' : 'badge-indigo'}`}>
+                    {comanda.tipo === 'hotel' ? '🏨 Hotel' : '👤 Particular'}
+                  </span>
+                </div>
+
+                {/* Información */}
+                <div className="comanda-info">
+                  <p>
+                    <strong>
+                      {comanda.tipo === 'hotel' ? '👔 Representante: ' : '👤 Cliente: '}
+                    </strong>
+                    {comanda.tipo === 'hotel' ? comanda.representante : comanda.nombreCliente}
+                  </p>
+                  <p>📞 {comanda.numeroCelular}</p>
+                  <p>👕 {comanda.tipoRopa} • ⚖️ {comanda.peso}kg</p>
+                </div>
+
+                {/* Fase actual */}
+                <div className="mb-3">
+                  <span className={`badge ${getColorFase(comanda.faseActual)}`}>
+                    📍 {comanda.faseActual.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Encargado actual si existe */}
+                {comanda.fases[comanda.faseActual]?.encargado && (
+                  <p className="text-xs" style={{ color: '#6b7280' }}>
+                    👨‍💼 {comanda.fases[comanda.faseActual].encargado}
+                  </p>
+                )}
+
+                {/* Fecha */}
+                <p className="text-xs mt-2" style={{ color: '#9ca3af' }}>
+                  📅 {new Date(comanda.fechaEmision).toLocaleDateString('es-CL')}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
