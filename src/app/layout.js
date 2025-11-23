@@ -5,10 +5,16 @@ export const metadata = {
   description: 'Sistema de seguimiento de órdenes de trabajo',
 }
 
+import { AuthProvider } from '../context/AuthContext';
+
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   )
 }

@@ -1,14 +1,34 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
+import { useAuth } from '../../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function ConsultaCliente() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const [codigo, setCodigo] = useState('');
   const [comanda, setComanda] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   const buscarComanda = async (e) => {
     e.preventDefault();
@@ -28,7 +48,7 @@ export default function ConsultaCliente() {
       );
 
       const querySnapshot = await getDocs(q);
-      
+
       if (querySnapshot.empty) {
         setError('Código no encontrado. Verifica el código e intenta nuevamente.');
       } else {
@@ -84,9 +104,6 @@ export default function ConsultaCliente() {
       <div className="container-small">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link href="/" style={{ display: 'inline-block', marginBottom: '20px', fontSize: '14px' }}>
-            ← Volver al Dashboard
-          </Link>
           <h1 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🧺 Consulta tu Comanda</h1>
           <p style={{ color: '#6b7280', fontSize: '1.1rem' }}>Ingresa tu código para ver el estado</p>
         </div>
@@ -101,8 +118,8 @@ export default function ConsultaCliente() {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 className="input"
-                style={{ 
-                  fontSize: '1.5rem', 
+                style={{
+                  fontSize: '1.5rem',
                   padding: '16px',
                   textTransform: 'uppercase',
                   fontWeight: '600',
@@ -141,7 +158,7 @@ export default function ConsultaCliente() {
               <div className="flex-between" style={{ marginBottom: '15px' }}>
                 <h2 style={{ fontSize: '2rem', margin: 0 }}>{comanda.codigo}</h2>
                 <span className={`badge ${comanda.tipo === 'hotel' ? 'badge-orange' : 'badge-indigo'}`}
-                      style={{ fontSize: '1rem', padding: '8px 16px' }}>
+                  style={{ fontSize: '1rem', padding: '8px 16px' }}>
                   {comanda.tipo === 'hotel' ? '🏨 Hotel' : '👤 Particular'}
                 </span>
               </div>
@@ -215,12 +232,12 @@ export default function ConsultaCliente() {
               <h3 style={{ marginBottom: '20px', color: '#374151', fontSize: '1.3rem' }}>
                 📊 Estado del Proceso
               </h3>
-              
+
               <div className="timeline">
                 {['analisis', 'lavado', 'planchado', 'embolsado'].map((fase, index) => {
                   const estado = getEstadoFase(fase, comanda.faseActual, comanda.fases);
                   const datosFase = comanda.fases[fase] || {};
-                  
+
                   return (
                     <div key={fase}>
                       <div className="timeline-item">
@@ -229,13 +246,13 @@ export default function ConsultaCliente() {
                             {getIconoEstado(estado)}
                           </span>
                         </div>
-                        
+
                         <div className="timeline-content">
                           <div style={{ opacity: estado === 'completado' ? 0.7 : 1 }}>
                             <h4 className="timeline-title" style={{ fontSize: '1.1rem' }}>
                               {formatearFase(fase)}
                             </h4>
-                            
+
                             {estado === 'completado' && (
                               <p className="timeline-text" style={{ color: '#16a34a', fontWeight: '600' }}>
                                 ✓ Completado
@@ -246,7 +263,7 @@ export default function ConsultaCliente() {
                                 )}
                               </p>
                             )}
-                            
+
                             {estado === 'en_proceso' && (
                               <div className="timeline-text" style={{ color: '#2563eb' }}>
                                 <p style={{ fontWeight: '600', margin: '5px 0' }}>⏳ En proceso...</p>
@@ -262,7 +279,7 @@ export default function ConsultaCliente() {
                                 )}
                               </div>
                             )}
-                            
+
                             {estado === 'pendiente' && (
                               <p className="timeline-text" style={{ color: '#9ca3af' }}>
                                 Pendiente
@@ -271,9 +288,9 @@ export default function ConsultaCliente() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {index < 3 && (
-                        <div 
+                        <div
                           className={`timeline-line ${estado === 'completado' ? 'timeline-line-active' : 'timeline-line-inactive'}`}
                         />
                       )}

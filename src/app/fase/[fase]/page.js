@@ -4,12 +4,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { db } from '../../../lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function FasePage({ params }) {
+  const { user, userData, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const comandaId = searchParams.get('comandaId');
-  
+
   // CORRECCIÓN: Usar React.use() para unwrap params
   const resolvedParams = use(params);
   const fase = resolvedParams.fase;
@@ -26,20 +28,30 @@ export default function FasePage({ params }) {
   const [horaInicio, setHoraInicio] = useState(null);
 
   useEffect(() => {
-    if (comandaId && fase) {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+      } else if (userData && userData.rol === 'cliente') {
+        router.push('/consulta');
+      }
+    }
+  }, [user, userData, authLoading, router]);
+
+  useEffect(() => {
+    if (comandaId && fase && user && (!userData || userData.rol !== 'cliente')) {
       cargarComanda();
     }
-  }, [comandaId, fase]);
+  }, [comandaId, fase, user, userData]);
 
   const cargarComanda = async () => {
     try {
       const docRef = doc(db, 'Comandas', comandaId);
       const docSnap = await getDoc(docRef);
-      
+
       if (docSnap.exists()) {
         const data = docSnap.data();
         setComanda({ id: docSnap.id, ...data });
-        
+
         // Verificar si ya está en proceso
         if (data.fases[fase]?.estado === 'en_proceso') {
           setEnProceso(true);
@@ -67,7 +79,7 @@ export default function FasePage({ params }) {
     try {
       const docRef = doc(db, 'Comandas', comandaId);
       const ahora = new Date().toISOString();
-      
+
       await updateDoc(docRef, {
         [`fases.${fase}.estado`]: 'en_proceso',
         [`fases.${fase}.encargado`]: nombreEncargado,
@@ -78,10 +90,10 @@ export default function FasePage({ params }) {
 
       setEnProceso(true);
       setHoraInicio(ahora);
-      
+
       // Enviar notificación WhatsApp
       enviarNotificacionWhatsApp('iniciado');
-      
+
       alert('Fase iniciada correctamente');
     } catch (error) {
       console.error('Error al iniciar fase:', error);
@@ -101,7 +113,7 @@ export default function FasePage({ params }) {
       const docRef = doc(db, 'Comandas', comandaId);
       const ahora = new Date().toISOString();
       const tiempoReal = calcularTiempoReal(horaInicio, ahora);
-      
+
       const fases = ['analisis', 'lavado', 'planchado', 'embolsado'];
       const indiceFaseActual = fases.indexOf(fase);
       const siguienteFase = fases[indiceFaseActual + 1];
@@ -125,7 +137,7 @@ export default function FasePage({ params }) {
 
       // Enviar notificación WhatsApp
       enviarNotificacionWhatsApp('completado', siguienteFase);
-      
+
       alert(`Fase completada. ${siguienteFase ? `La comanda pasó a ${siguienteFase}` : 'Comanda finalizada'}`);
       router.push('/');
     } catch (error) {
@@ -142,42 +154,42 @@ export default function FasePage({ params }) {
   };
 
   const enviarNotificacionWhatsApp = (estado, siguienteFase = null) => {
-  if (!comanda) return;
+    if (!comanda) return;
 
-  let mensaje = '';
-  if (estado === 'iniciado') {
-    mensaje = `¡Hola! Tu comanda ${comanda.codigo} ha iniciado la fase de *${fase.toUpperCase()}*. Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre`;
-  } else if (estado === 'completado') {
-    if (siguienteFase) {
-      mensaje = `¡Tu comanda ${comanda.codigo} completó la fase de *${fase.toUpperCase()}* y pasó a *${siguienteFase.toUpperCase()}*! - Lavandería El Cobre`;
-    } else {
-      mensaje = `¡Tu comanda ${comanda.codigo} está *LISTA PARA RETIRAR*! 🎉 - Lavandería El Cobre`;
+    let mensaje = '';
+    if (estado === 'iniciado') {
+      mensaje = `¡Hola! Tu comanda ${comanda.codigo} ha iniciado la fase de *${fase.toUpperCase()}*. Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre`;
+    } else if (estado === 'completado') {
+      if (siguienteFase) {
+        mensaje = `¡Tu comanda ${comanda.codigo} completó la fase de *${fase.toUpperCase()}* y pasó a *${siguienteFase.toUpperCase()}*! - Lavandería El Cobre`;
+      } else {
+        mensaje = `¡Tu comanda ${comanda.codigo} está *LISTA PARA RETIRAR*! 🎉 - Lavandería El Cobre`;
+      }
     }
-  }
 
-  // CORRECCIÓN: Limpiar el número y validar formato
-  let numeroLimpio = comanda.numeroCelular.replace(/[^0-9]/g, '');
-  
-  // Si el número no empieza con 56, agregarlo
-  if (!numeroLimpio.startsWith('56')) {
-    // Si empieza con 9 (formato chileno), agregar 56
-    if (numeroLimpio.startsWith('9')) {
-      numeroLimpio = '56' + numeroLimpio;
-    } else {
-      // Si no, asumir que falta el código de país
-      numeroLimpio = '56' + numeroLimpio;
+    // CORRECCIÓN: Limpiar el número y validar formato
+    let numeroLimpio = comanda.numeroCelular.replace(/[^0-9]/g, '');
+
+    // Si el número no empieza con 56, agregarlo
+    if (!numeroLimpio.startsWith('56')) {
+      // Si empieza con 9 (formato chileno), agregar 56
+      if (numeroLimpio.startsWith('9')) {
+        numeroLimpio = '56' + numeroLimpio;
+      } else {
+        // Si no, asumir que falta el código de país
+        numeroLimpio = '56' + numeroLimpio;
+      }
     }
-  }
-  
-  console.log('📱 Número original:', comanda.numeroCelular);
-  console.log('📱 Número limpio:', numeroLimpio);
-  console.log('💬 Mensaje:', mensaje);
-  
-  const url = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
-  console.log('🔗 URL WhatsApp:', url);
-  
-  window.open(url, '_blank');
-};
+
+    console.log('📱 Número original:', comanda.numeroCelular);
+    console.log('📱 Número limpio:', numeroLimpio);
+    console.log('💬 Mensaje:', mensaje);
+
+    const url = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
+    console.log('🔗 URL WhatsApp:', url);
+
+    window.open(url, '_blank');
+  };
 
   const getColorFase = (fase) => {
     const colores = {
@@ -188,6 +200,18 @@ export default function FasePage({ params }) {
     };
     return colores[fase] || 'bg-gray-500';
   };
+
+  if (authLoading) {
+    return (
+      <div className="loading">
+        <div style={{ textAlign: 'center' }}>
+          <h2>Verificando acceso...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || (userData && userData.rol === 'cliente')) return null;
 
   // Mostrar loading mientras carga
   if (loading || !fase) {

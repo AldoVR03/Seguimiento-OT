@@ -3,13 +3,29 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
+import { useAuth } from '../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
+  const { user, userData, loading } = useAuth();
+  const router = useRouter();
   const [comandas, setComandas] = useState([]);
   const [filtroFase, setFiltroFase] = useState('todas');
   const [filtroTipo, setFiltroTipo] = useState('todas');
 
   useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.push('/login');
+      } else if (userData && userData.rol === 'cliente') {
+        router.push('/consulta');
+      }
+    }
+  }, [user, userData, loading, router]);
+
+  useEffect(() => {
+    if (!user || (userData && userData.rol === 'cliente')) return;
+
     // Consulta en tiempo real de comandas no finalizadas
     const q = query(
       collection(db, 'Comandas'),
@@ -36,7 +52,7 @@ export default function Dashboard() {
   });
 
   const fases = ['analisis', 'lavado', 'planchado', 'embolsado'];
-  
+
   const getColorFase = (fase) => {
     const colores = {
       analisis: 'badge-yellow',
@@ -46,6 +62,16 @@ export default function Dashboard() {
     };
     return colores[fase] || 'badge-secondary';
   };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!user || (userData && userData.rol === 'cliente')) return null;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '20px' }}>
