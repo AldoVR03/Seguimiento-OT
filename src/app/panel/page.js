@@ -29,9 +29,21 @@ export default function Dashboard() {
         if (!user || (userData && userData.rol === 'cliente')) return;
 
         const unsubEmpresa = onSnapshot(
-            query(collection(db, 'comandas_empresa_grupo_5'), where('estado', '!=', 'Finalizado')),
+            collection(db, 'comandas_empresa_grupo_5'),
             (snapshot) => {
-                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), collection: 'comandas_empresa_grupo_5' }));
+                const data = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data(), collection: 'comandas_empresa_grupo_5' }))
+                    .filter(comanda => {
+                        // Mostrar si está Pendiente o En proceso
+                        if (comanda.estado === 'Pendiente' || comanda.estado === 'En proceso') {
+                            return true;
+                        }
+                        // Mostrar si está "Listo para su entrega" Y tiene despacho
+                        if (comanda.estado === 'Listo para su entrega' && comanda.despacho === true) {
+                            return true;
+                        }
+                        return false;
+                    });
                 setComandas(prev => {
                     const other = prev.filter(c => c.collection !== 'comandas_empresa_grupo_5');
                     return [...other, ...data].sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
@@ -40,9 +52,21 @@ export default function Dashboard() {
         );
 
         const unsubParticular = onSnapshot(
-            query(collection(db, 'comandas_particular_grupo_5'), where('estado', '!=', 'Finalizado')),
+            collection(db, 'comandas_particular_grupo_5'),
             (snapshot) => {
-                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), collection: 'comandas_particular_grupo_5' }));
+                const data = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data(), collection: 'comandas_particular_grupo_5' }))
+                    .filter(comanda => {
+                        // Mostrar si está Pendiente o En proceso
+                        if (comanda.estado === 'Pendiente' || comanda.estado === 'En proceso') {
+                            return true;
+                        }
+                        // Mostrar si está "Listo para su entrega" Y tiene despacho
+                        if (comanda.estado === 'Listo para su entrega' && comanda.despacho === true) {
+                            return true;
+                        }
+                        return false;
+                    });
                 setComandas(prev => {
                     const other = prev.filter(c => c.collection !== 'comandas_particular_grupo_5');
                     return [...other, ...data].sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
@@ -153,7 +177,7 @@ export default function Dashboard() {
                 {/* Lista de comandas */}
                 {comandasFiltradas.length === 0 ? (
                     <div className="card text-center">
-                        <p style={{ color: '#6b7280' }}>No hay comandas pendientes</p>
+                        <p style={{ color: '#6b7280' }}>No hay comandas en proceso</p>
                     </div>
                 ) : (
                     <div style={{
@@ -206,6 +230,6 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
-        </div >
+        </div>
     );
 }

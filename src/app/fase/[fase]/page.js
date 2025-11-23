@@ -137,10 +137,23 @@ export default function FasePage({ params }) {
         [`fases.${fase}.tiempoReal`]: tiempoReal,
       };
 
-      if (siguienteFase) {
+      // Lógica especial para embolsado: SIEMPRE cambia a "Listo para su entrega"
+      if (fase === 'embolsado') {
+        updates.estado = 'Listo para su entrega';
+        // Si tiene despacho, también actualizar faseActual
+        if (siguienteFase) {
+          updates.faseActual = siguienteFase;
+        }
+      } else if (siguienteFase) {
+        // Para otras fases, solo actualizar faseActual si hay siguiente fase
         updates.faseActual = siguienteFase;
       } else {
-        updates.estado = 'Finalizado';
+        // No hay siguiente fase y no es embolsado
+        if (fase === 'despacho') {
+          updates.estado = 'Finalizado';
+        } else {
+          updates.estado = 'Finalizado';
+        }
       }
 
       await updateDoc(docRef, updates);
@@ -264,7 +277,6 @@ export default function FasePage({ params }) {
             <p><strong>Tipo:</strong> {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}</p>
             <p><strong>Cliente:</strong> {comanda.cliente.nombre}</p>
             <p><strong>Teléfono:</strong> {comanda.cliente.telefono}</p>
-            {/* Mostrar prendas si es necesario, la estructura es un array */}
             <p><strong>Prendas:</strong> {comanda.prendas.length} items</p>
           </div>
         </div>
