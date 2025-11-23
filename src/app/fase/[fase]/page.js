@@ -6,6 +6,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 
+export const dynamic = 'force-dynamic';
+
 export default function FasePage({ params }) {
   const { user, userData, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
