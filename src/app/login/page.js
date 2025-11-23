@@ -26,19 +26,17 @@ export default function LoginPage() {
 
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                const role = userData.rol; // Asumiendo que el campo se llama 'rol' o 'role'
+                const role = userData.rol;
 
                 if (role === 'cliente') {
                     router.push('/consulta');
                 } else if (role === 'admin' || role === 'operador') {
-                    router.push('/');
+                    router.push('/dashboard');
                 } else {
-                    // Si no tiene rol definido o es otro
-                    router.push('/');
+                    router.push('/dashboard');
                 }
             } else {
-                // Si no hay datos de usuario, redirigir al home por defecto
-                router.push('/');
+                router.push('/dashboard');
             }
 
         } catch (err) {

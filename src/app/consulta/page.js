@@ -42,18 +42,37 @@ export default function ConsultaCliente() {
 
     setBuscando(true);
     try {
-      const q = query(
-        collection(db, 'Comandas'),
-        where('codigo', '==', codigo.toUpperCase().trim())
+      // Buscar en ambas colecciones
+      const qEmpresa = query(
+        collection(db, 'comandas_empresa_grupo_5'),
+        where('numeroOrden', '==', codigo.toUpperCase().trim())
       );
 
-      const querySnapshot = await getDocs(q);
+      const qParticular = query(
+        collection(db, 'comandas_particular_grupo_5'),
+        where('numeroOrden', '==', codigo.toUpperCase().trim())
+      );
 
-      if (querySnapshot.empty) {
+      const [snapEmpresa, snapParticular] = await Promise.all([
+        getDocs(qEmpresa),
+        getDocs(qParticular)
+      ]);
+
+      let docFound = null;
+      let collectionName = '';
+
+      if (!snapEmpresa.empty) {
+        docFound = snapEmpresa.docs[0];
+        collectionName = 'comandas_empresa_grupo_5';
+      } else if (!snapParticular.empty) {
+        docFound = snapParticular.docs[0];
+        collectionName = 'comandas_particular_grupo_5';
+      }
+
+      if (!docFound) {
         setError('Código no encontrado. Verifica el código e intenta nuevamente.');
       } else {
-        const doc = querySnapshot.docs[0];
-        setComanda({ id: doc.id, ...doc.data() });
+        setComanda({ id: docFound.id, ...docFound.data(), collection: collectionName });
       }
     } catch (error) {
       console.error('Error al buscar comanda:', error);
@@ -64,14 +83,14 @@ export default function ConsultaCliente() {
   };
 
   const getEstadoFase = (fase, faseActual, fases) => {
-    const orden = ['analisis', 'lavado', 'planchado', 'embolsado'];
+    const orden = ['analisis', 'lavado', 'planchado', 'embolsado', 'despacho'];
     const indexFase = orden.indexOf(fase);
-    const indexActual = orden.indexOf(faseActual);
+    const indexActual = orden.indexOf(faseActual || 'analisis');
 
     if (indexFase < indexActual) {
       return 'completado';
     } else if (indexFase === indexActual) {
-      return fases[fase]?.estado || 'pendiente';
+      return (fases && fases[fase]?.estado) || 'pendiente';
     } else {
       return 'pendiente';
     }
@@ -94,7 +113,8 @@ export default function ConsultaCliente() {
       analisis: 'Análisis',
       lavado: 'Lavado',
       planchado: 'Planchado',
-      embolsado: 'Embolsado'
+      embolsado: 'Embolsado',
+      despacho: 'Despacho'
     };
     return nombres[fase] || fase;
   };
@@ -125,11 +145,11 @@ export default function ConsultaCliente() {
                   fontWeight: '600',
                   textAlign: 'center'
                 }}
-                placeholder="H-0001 o P-0001"
+                placeholder="EMP-1 o PART-1"
                 disabled={buscando}
               />
               <small style={{ display: 'block', textAlign: 'center', marginTop: '8px' }}>
-                Ejemplo: H-0001 para hoteles, P-0001 para particulares
+                Ejemplo: EMP-1 para empresas, PART-1 para particulares
               </small>
             </div>
 
@@ -156,15 +176,15 @@ export default function ConsultaCliente() {
             {/* Header de la comanda */}
             <div style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '20px', marginBottom: '25px' }}>
               <div className="flex-between" style={{ marginBottom: '15px' }}>
-                <h2 style={{ fontSize: '2rem', margin: 0 }}>{comanda.codigo}</h2>
-                <span className={`badge ${comanda.tipo === 'hotel' ? 'badge-orange' : 'badge-indigo'}`}
+                <h2 style={{ fontSize: '2rem', margin: 0 }}>{comanda.numeroOrden}</h2>
+                <span className={`badge ${comanda.tipo === 'Empresa' ? 'badge-orange' : 'badge-indigo'}`}
                   style={{ fontSize: '1rem', padding: '8px 16px' }}>
-                  {comanda.tipo === 'hotel' ? '🏨 Hotel' : '👤 Particular'}
+                  {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}
                 </span>
               </div>
 
               {/* Estado principal */}
-              {comanda.finalizado ? (
+              {comanda.estado === 'Finalizado' ? (
                 <div style={{
                   background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
                   color: 'white',
@@ -186,11 +206,11 @@ export default function ConsultaCliente() {
                   textAlign: 'center'
                 }}>
                   <p style={{ fontSize: '1.3rem', fontWeight: '600', margin: 0, marginBottom: '8px' }}>
-                    Fase actual: {formatearFase(comanda.faseActual)}
+                    Fase actual: {formatearFase(comanda.faseActual || 'analisis')}
                   </p>
-                  {comanda.fases[comanda.faseActual]?.tiempoEstimado > 0 && (
+                  {comanda.fases && comanda.fases[comanda.faseActual || 'analisis']?.tiempoEstimado > 0 && (
                     <p style={{ fontSize: '1rem', margin: 0, opacity: 0.9 }}>
-                      ⏱️ Tiempo estimado: {comanda.fases[comanda.faseActual].tiempoEstimado} minutos
+                      ⏱️ Tiempo estimado: {comanda.fases[comanda.faseActual || 'analisis'].tiempoEstimado} minutos
                     </p>
                   )}
                 </div>
@@ -203,27 +223,24 @@ export default function ConsultaCliente() {
               <div style={{ display: 'grid', gap: '10px' }}>
                 <p style={{ margin: 0 }}>
                   <strong>Cliente:</strong>{' '}
-                  {comanda.tipo === 'hotel' ? comanda.representante : comanda.nombreCliente}
+                  {comanda.cliente.nombre}
                 </p>
                 <p style={{ margin: 0 }}>
-                  <strong>Tipo de ropa:</strong> {comanda.tipoRopa}
+                  <strong>Teléfono:</strong> {comanda.cliente.telefono}
                 </p>
-                <p style={{ margin: 0 }}>
-                  <strong>Peso:</strong> {comanda.peso}kg
-                </p>
-                {comanda.tipo === 'particular' && comanda.tipoServicio && (
-                  <p style={{ margin: 0 }}>
-                    <strong>Servicio:</strong> {comanda.tipoServicio}
-                  </p>
-                )}
                 <p style={{ margin: 0 }}>
                   <strong>Fecha de emisión:</strong>{' '}
-                  {new Date(comanda.fechaEmision).toLocaleDateString('es-CL', {
+                  {new Date(comanda.fechaCreacion).toLocaleDateString('es-CL', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
                   })}
                 </p>
+                {comanda.despacho && (
+                  <p style={{ margin: 0 }}>
+                    <strong>🚚 Despacho:</strong> Sí
+                  </p>
+                )}
               </div>
             </div>
 
@@ -234,9 +251,12 @@ export default function ConsultaCliente() {
               </h3>
 
               <div className="timeline">
-                {['analisis', 'lavado', 'planchado', 'embolsado'].map((fase, index) => {
+                {['analisis', 'lavado', 'planchado', 'embolsado', 'despacho'].map((fase, index) => {
+                  // Si es despacho y la comanda no tiene despacho, no mostrar
+                  if (fase === 'despacho' && !comanda.despacho) return null;
+
                   const estado = getEstadoFase(fase, comanda.faseActual, comanda.fases);
-                  const datosFase = comanda.fases[fase] || {};
+                  const datosFase = (comanda.fases && comanda.fases[fase]) || {};
 
                   return (
                     <div key={fase}>
@@ -289,7 +309,8 @@ export default function ConsultaCliente() {
                         </div>
                       </div>
 
-                      {index < 3 && (
+                      {/* Mostrar línea si no es el último elemento visible */}
+                      {((!comanda.despacho && index < 3) || (comanda.despacho && index < 4)) && (
                         <div
                           className={`timeline-line ${estado === 'completado' ? 'timeline-line-active' : 'timeline-line-inactive'}`}
                         />

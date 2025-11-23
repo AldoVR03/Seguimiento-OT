@@ -11,8 +11,8 @@ export default function FasePage({ params }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const comandaId = searchParams.get('comandaId');
+  const collectionName = searchParams.get('collection');
 
-  // CORRECCIÓN: Usar React.use() para unwrap params
   const resolvedParams = use(params);
   const fase = resolvedParams.fase;
 
@@ -38,14 +38,14 @@ export default function FasePage({ params }) {
   }, [user, userData, authLoading, router]);
 
   useEffect(() => {
-    if (comandaId && fase && user && (!userData || userData.rol !== 'cliente')) {
+    if (comandaId && collectionName && fase && user && (!userData || userData.rol !== 'cliente')) {
       cargarComanda();
     }
-  }, [comandaId, fase, user, userData]);
+  }, [comandaId, collectionName, fase, user, userData]);
 
   const cargarComanda = async () => {
     try {
-      const docRef = doc(db, 'Comandas', comandaId);
+      const docRef = doc(db, collectionName, comandaId);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -53,7 +53,7 @@ export default function FasePage({ params }) {
         setComanda({ id: docSnap.id, ...data });
 
         // Verificar si ya está en proceso
-        if (data.fases[fase]?.estado === 'en_proceso') {
+        if (data.fases && data.fases[fase]?.estado === 'en_proceso') {
           setEnProceso(true);
           setNombreEncargado(data.fases[fase].encargado || '');
           setCodigoEncargado(data.fases[fase].codigoEncargado || '');
@@ -77,16 +77,23 @@ export default function FasePage({ params }) {
 
     setProcesando(true);
     try {
-      const docRef = doc(db, 'Comandas', comandaId);
+      const docRef = doc(db, collectionName, comandaId);
       const ahora = new Date().toISOString();
 
-      await updateDoc(docRef, {
+      const updates = {
         [`fases.${fase}.estado`]: 'en_proceso',
         [`fases.${fase}.encargado`]: nombreEncargado,
         [`fases.${fase}.codigoEncargado`]: codigoEncargado,
         [`fases.${fase}.tiempoEstimado`]: parseInt(tiempoEstimado),
         [`fases.${fase}.horaInicio`]: ahora,
-      });
+      };
+
+      // Si iniciamos análisis, cambiamos estado global a "En proceso"
+      if (fase === 'analisis') {
+        updates.estado = 'En proceso';
+      }
+
+      await updateDoc(docRef, updates);
 
       setEnProceso(true);
       setHoraInicio(ahora);
@@ -110,11 +117,15 @@ export default function FasePage({ params }) {
 
     setProcesando(true);
     try {
-      const docRef = doc(db, 'Comandas', comandaId);
+      const docRef = doc(db, collectionName, comandaId);
       const ahora = new Date().toISOString();
       const tiempoReal = calcularTiempoReal(horaInicio, ahora);
 
       const fases = ['analisis', 'lavado', 'planchado', 'embolsado'];
+      if (comanda.despacho) {
+        fases.push('despacho');
+      }
+
       const indiceFaseActual = fases.indexOf(fase);
       const siguienteFase = fases[indiceFaseActual + 1];
 
@@ -128,9 +139,16 @@ export default function FasePage({ params }) {
       if (siguienteFase) {
         updates.faseActual = siguienteFase;
       } else {
-        // Si es la última fase (embolsado), marcar como finalizado
-        updates.finalizado = true;
-        updates.fechaFinalizacion = ahora;
+        // Si es la última fase
+        if (comanda.despacho) {
+          // Si tenía despacho y terminó despacho -> Finalizado
+          updates.estado = 'Finalizado';
+          updates.fechaEntregaReal = ahora;
+        } else {
+          // Si NO tenía despacho y terminó embolsado -> Se mantiene En proceso
+          // Solo marcamos la fase como completada (ya hecho arriba)
+          // No cambiamos el estado global a Finalizado
+        }
       }
 
       await updateDoc(docRef, updates);
@@ -138,8 +156,8 @@ export default function FasePage({ params }) {
       // Enviar notificación WhatsApp
       enviarNotificacionWhatsApp('completado', siguienteFase);
 
-      alert(`Fase completada. ${siguienteFase ? `La comanda pasó a ${siguienteFase}` : 'Comanda finalizada'}`);
-      router.push('/');
+      alert(`Fase completada. ${siguienteFase ? `La comanda pasó a ${siguienteFase}` : 'Fase finalizada'}`);
+      router.push('/dashboard');
     } catch (error) {
       console.error('Error al finalizar fase:', error);
       alert('Error al finalizar la fase');
@@ -158,17 +176,17 @@ export default function FasePage({ params }) {
 
     let mensaje = '';
     if (estado === 'iniciado') {
-      mensaje = `¡Hola! Tu comanda ${comanda.codigo} ha iniciado la fase de *${fase.toUpperCase()}*. Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre`;
+      mensaje = `¡Hola! Tu comanda ${comanda.numeroOrden} ha iniciado la fase de *${fase.toUpperCase()}*. Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre`;
     } else if (estado === 'completado') {
       if (siguienteFase) {
-        mensaje = `¡Tu comanda ${comanda.codigo} completó la fase de *${fase.toUpperCase()}* y pasó a *${siguienteFase.toUpperCase()}*! - Lavandería El Cobre`;
+        mensaje = `¡Tu comanda ${comanda.numeroOrden} completó la fase de *${fase.toUpperCase()}* y pasó a *${siguienteFase.toUpperCase()}*! - Lavandería El Cobre`;
       } else {
-        mensaje = `¡Tu comanda ${comanda.codigo} está *LISTA PARA RETIRAR*! 🎉 - Lavandería El Cobre`;
+        mensaje = `¡Tu comanda ${comanda.numeroOrden} está *LISTA*! 🎉 - Lavandería El Cobre`;
       }
     }
 
-    // CORRECCIÓN: Limpiar el número y validar formato
-    let numeroLimpio = comanda.numeroCelular.replace(/[^0-9]/g, '');
+    // Limpiar el número y validar formato
+    let numeroLimpio = comanda.cliente.telefono.replace(/[^0-9]/g, '');
 
     // Si el número no empieza con 56, agregarlo
     if (!numeroLimpio.startsWith('56')) {
@@ -181,13 +199,7 @@ export default function FasePage({ params }) {
       }
     }
 
-    console.log('📱 Número original:', comanda.numeroCelular);
-    console.log('📱 Número limpio:', numeroLimpio);
-    console.log('💬 Mensaje:', mensaje);
-
     const url = `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`;
-    console.log('🔗 URL WhatsApp:', url);
-
     window.open(url, '_blank');
   };
 
@@ -196,7 +208,8 @@ export default function FasePage({ params }) {
       analisis: 'fase-analisis',
       lavado: 'fase-lavado',
       planchado: 'fase-planchado',
-      embolsado: 'fase-embolsado'
+      embolsado: 'fase-embolsado',
+      despacho: 'fase-despacho'
     };
     return colores[fase] || 'bg-gray-500';
   };
@@ -229,7 +242,7 @@ export default function FasePage({ params }) {
       <div className="loading">
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: '1.25rem', marginBottom: '20px' }}>Comanda no encontrada</p>
-          <Link href="/" className="btn btn-primary">
+          <Link href="/dashboard" className="btn btn-primary">
             ← Volver al inicio
           </Link>
         </div>
@@ -242,14 +255,14 @@ export default function FasePage({ params }) {
       <div className="container-small">
         {/* Header */}
         <div className="mb-6">
-          <Link href="/" style={{ display: 'inline-block', marginBottom: '15px' }}>
+          <Link href="/dashboard" style={{ display: 'inline-block', marginBottom: '15px' }}>
             ← Volver al Dashboard
           </Link>
           <div className={`fase-header ${getColorFase(fase)}`}>
             <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>
               {fase ? fase.toUpperCase() : 'CARGANDO...'}
             </h1>
-            <p style={{ opacity: 0.9 }}>Comanda: {comanda.codigo}</p>
+            <p style={{ opacity: 0.9 }}>Comanda: {comanda.numeroOrden}</p>
           </div>
         </div>
 
@@ -257,14 +270,11 @@ export default function FasePage({ params }) {
         <div className="card mb-6">
           <h2>Información de la Comanda</h2>
           <div className="info-box">
-            <p><strong>Tipo:</strong> {comanda.tipo === 'hotel' ? '🏨 Hotel' : '👤 Particular'}</p>
-            <p><strong>Cliente:</strong> {comanda.tipo === 'hotel' ? comanda.representante : comanda.nombreCliente}</p>
-            <p><strong>Teléfono:</strong> {comanda.numeroCelular}</p>
-            <p><strong>Tipo de ropa:</strong> {comanda.tipoRopa}</p>
-            <p><strong>Peso:</strong> {comanda.peso}kg</p>
-            {comanda.tipo === 'particular' && comanda.tipoServicio && (
-              <p><strong>Servicio:</strong> {comanda.tipoServicio}</p>
-            )}
+            <p><strong>Tipo:</strong> {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}</p>
+            <p><strong>Cliente:</strong> {comanda.cliente.nombre}</p>
+            <p><strong>Teléfono:</strong> {comanda.cliente.telefono}</p>
+            {/* Mostrar prendas si es necesario, la estructura es un array */}
+            <p><strong>Prendas:</strong> {comanda.prendas.length} items</p>
           </div>
         </div>
 
