@@ -137,29 +137,18 @@ export default function FasePage({ params }) {
         [`fases.${fase}.tiempoReal`]: tiempoReal,
       };
 
-      // Si hay siguiente fase, actualizar faseActual
       if (siguienteFase) {
         updates.faseActual = siguienteFase;
       } else {
-        // Si es la última fase
-        if (comanda.despacho) {
-          // Si tenía despacho y terminó despacho -> Finalizado
-          updates.estado = 'Finalizado';
-          updates.fechaEntregaReal = ahora;
-        } else {
-          // Si NO tenía despacho y terminó embolsado -> Se mantiene En proceso
-          // Solo marcamos la fase como completada (ya hecho arriba)
-          // No cambiamos el estado global a Finalizado
-        }
+        updates.estado = 'Finalizado';
       }
 
       await updateDoc(docRef, updates);
 
-      // Enviar notificación WhatsApp
       enviarNotificacionWhatsApp('completado', siguienteFase);
 
-      alert(`Fase completada. ${siguienteFase ? `La comanda pasó a ${siguienteFase}` : 'Fase finalizada'}`);
-      router.push('/dashboard');
+      alert('Fase finalizada correctamente');
+      router.push('/panel');
     } catch (error) {
       console.error('Error al finalizar fase:', error);
       alert('Error al finalizar la fase');
@@ -244,7 +233,7 @@ export default function FasePage({ params }) {
       <div className="loading">
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: '1.25rem', marginBottom: '20px' }}>Comanda no encontrada</p>
-          <Link href="/dashboard" className="btn btn-primary">
+          <Link href="/panel" className="btn btn-primary">
             ← Volver al inicio
           </Link>
         </div>
@@ -257,8 +246,8 @@ export default function FasePage({ params }) {
       <div className="container-small">
         {/* Header */}
         <div className="mb-6">
-          <Link href="/dashboard" style={{ display: 'inline-block', marginBottom: '15px' }}>
-            ← Volver al Dashboard
+          <Link href="/panel" style={{ display: 'inline-block', marginBottom: '15px' }}>
+            ← Volver al Panel
           </Link>
           <div className={`fase-header ${getColorFase(fase)}`}>
             <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>

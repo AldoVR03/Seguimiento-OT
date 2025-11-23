@@ -156,7 +156,11 @@ export default function Dashboard() {
                         <p style={{ color: '#6b7280' }}>No hay comandas pendientes</p>
                     </div>
                 ) : (
-                    <div className="grid grid-3">
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                        gap: '20px'
+                    }}>
                         {comandasFiltradas.map(comanda => (
                             <Link
                                 key={comanda.id}
@@ -202,6 +206,6 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

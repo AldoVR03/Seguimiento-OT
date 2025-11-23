@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 
 // URL de la Intranet para volver si falla
-const MAIN_INTRANET_URL = "https://lavanderia-cobre-landingpage.vercel.app/intranet/dashboard";
+const MAIN_INTRANET_URL = "https://lavanderia-cobre-landingpage.vercel.app/intranet/panel";
 
 function RootPageContent() {
   const { user, userData, loading, loginWithToken } = useAuth();
@@ -85,7 +85,7 @@ function RootPageContent() {
       if (userData.rol === 'cliente') {
         router.push('/consulta');
       } else {
-        router.push('/dashboard');
+        router.push('/panel');
       }
     }
   }, [status, user, userData, router]);

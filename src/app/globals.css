@@ -77,6 +77,10 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
+.grid-5 {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 /* Botones */
 .btn {
   padding: 12px 24px;

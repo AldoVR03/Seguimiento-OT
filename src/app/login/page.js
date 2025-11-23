@@ -26,17 +26,21 @@ export default function LoginPage() {
 
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                const role = userData.rol;
+                const role = (userData.rol || '').toLowerCase(); // Normalize role
 
                 if (role === 'cliente') {
                     router.push('/consulta');
                 } else if (role === 'admin' || role === 'operador') {
-                    router.push('/dashboard');
+                    router.push('/panel');
                 } else {
-                    router.push('/dashboard');
+                    // Fallback for unknown roles
+                    console.warn('Unknown role:', role);
+                    router.push('/panel');
                 }
             } else {
-                router.push('/dashboard');
+                // Handle case where user exists in Auth but not in Firestore
+                console.error('User document not found');
+                router.push('/panel');
             }
 
         } catch (err) {
