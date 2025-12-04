@@ -101,12 +101,12 @@ h3 {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: #ff6b35;
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #ff6b35;
 }
 
 .btn-success {
@@ -157,7 +157,7 @@ h3 {
 .input:focus,
 .select:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: #ff6b35;
 }
 
 .input::placeholder {
@@ -184,8 +184,7 @@ h3 {
 }
 
 .badge-purple {
-  background: #e9d5ff;
-  color: #6b21a8;
+  background: fase-;
 }
 
 .badge-green {
@@ -205,27 +204,27 @@ h3 {
 
 /* Fases colores */
 .fase-analisis {
-  background: #eab308;
+  background: "";
   color: white;
 }
 
 .fase-lavado {
-  background: #3b82f6;
+  background: "";
   color: white;
 }
 
 .fase-planchado {
-  background: #a855f7;
+  background: #86efac;
   color: white;
 }
 
 .fase-embolsado {
-  background: #22c55e;
+  background: #86efac;
   color: white;
 }
 
 .fase-despacho {
-  background: #f97316;
+  background: #86efac;
   color: white;
 }
 
@@ -234,7 +233,7 @@ h3 {
   background: white;
   border-radius: 12px;
   padding: 20px;
-  border-left: 4px solid #2563eb;
+  border-left: 4px solid ;
   cursor: pointer;
   transition: all 0.3s;
   text-decoration: none;
@@ -544,4 +543,141 @@ a:hover {
   100% {
     transform: rotate(360deg);
   }
+}
+/* Fase iniciada: gris */
+.badge-gray {
+  background: #e5e7eb; /* gris claro */
+  color: #374151;      /* gris oscuro */
+}
+
+/* Fase finalizada: verde */
+.badge-green {
+  background: #d1fae5; /* verde suave */
+  color: #065f46;      /* verde oscuro */
+}
+
+.btn-agregar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  background-color: #ffffff;
+  color: #000000;
+
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  width: 100%;
+  justify-content: center;
+
+  transition: 0.2s;
+}
+
+.btn-agregar:hover {
+  background-color: #f5f5f5;
+}
+
+.icon {
+  font-size: 18px;
+}
+/* Contenedor */
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* Label */
+.label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+}
+
+/* Input con estilo moderno */
+.input {
+  width: 100%;
+  padding: 10px 14px;
+
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+
+  font-size: 16px;
+  transition: 0.2s;
+}
+
+.input:focus {
+  border-color: #999;
+  outline: none;
+  background-color: #fafafa;
+}
+
+/* Grupo de botones */
+.btn-group {
+  display: flex;
+  gap: 12px;
+}
+
+/* Botón Guardar */
+.btn-guardar {
+  flex: 1;
+  padding: 10px 16px;
+
+  background-color: #ffffff;
+  color: #000000;
+  border-radius: 8px;
+
+  font-size: 16px;
+  font-weight: 500;
+  border: 1px solid #ccc;
+
+  justify-content: center;
+  display: flex;
+  flex-direction: row;
+  gap: 12px !important;   /* ← Asegura espacio REAL entre botones */
+  margin-top: 12px;
+  width: 100%;
+}
+
+.btn-guardar:hover {
+  background-color: #f5f5f5;
+}
+
+/* Botón Cancelar */
+.btn-cancelar {
+  flex: 1;
+  padding: 10px 16px;
+
+  background-color: #ffffff;
+  color: #000000;
+
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+
+  font-size: 16px;
+  font-weight: 500;
+
+  cursor: pointer;
+  transition: 0.2s;
+  gap: 24px;
+  margin-bottom: 10px;
+
+  justify-content: center;
+  display: flex;
+  flex-direction: row;
+  gap: 12px !important;   /* ← Asegura espacio REAL entre botones */
+  margin-top: 12px;
+  width: 100%;
+  
+}
+
+.btn-cancelar:hover {
+  background-color: #f0f0f0;
 }

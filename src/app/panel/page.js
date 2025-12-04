@@ -97,16 +97,47 @@ export default function Dashboard() {
 
     const fases = ['analisis', 'lavado', 'planchado', 'embolsado', 'despacho'];
 
-    const getColorFase = (fase) => {
-        const colores = {
-            analisis: 'badge-yellow',
-            lavado: 'badge-blue',
-            planchado: 'badge-purple',
+    const getColorFase = (fase, estado) => {
+        const clasesActivas = {
+            analisis: 'badge-green',
+            lavado: 'badge-green',
+            planchado: 'badge-green',
             embolsado: 'badge-green',
-            despacho: 'badge-orange'
+            despacho: 'badge-green'
         };
-        return colores[fase] || 'badge-secondary';
-    };
+
+        const clasesPendiente = {
+            analisis: 'badge-gray',
+            lavado: 'badge-gray',
+            planchado: 'badge-gray',
+            embolsado: 'badge-gray',
+            despacho: 'badge-gray'
+        };
+
+        // Normalizar estado
+        const est = (estado || "").toLowerCase();
+
+        // Estados que significan NO iniciado → GRIS
+        const estadosPendientes = [
+            "",               // vacío
+            "pendiente",
+            "sin iniciar",
+            "no iniciada",
+            "no-iniciada",
+            "no asignada",
+            "iniciar fase",
+            "iniciado",
+            "iniciar-fase"
+        ];
+
+        // ES PENDIENTE → gris
+        const isPendiente = estadosPendientes.includes(est);
+
+        return isPendiente
+            ? clasesPendiente[fase] || "badge-gray"
+            : clasesActivas[fase] || "badge-green";
+        };
+
 
     if (loading) {
         return (
@@ -119,24 +150,33 @@ export default function Dashboard() {
     if (!user || (userData && userData.rol === 'cliente')) return null;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '20px' }}>
+        <div style={{ minHeight: "100vh", background: "#FFE9D6", padding: "20px" }}>
+            {/* Header */}
             <div className="container">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1>🧺 Lavandería El Cobre</h1>
-                    <p style={{ color: '#6b7280' }}>Panel de Control - Operadores</p>
-                </div>
+                <div
+                    style={{
+                        background: "#FF8A3D", // naranja fuerte
+                        padding: "20px",
+                        borderRadius: "12px",
+                        marginBottom: "30px",
+                        color: "white",
+                        boxShadow: "0px 6px 16px rgba(0,0,0,0.20)"
+                    }}
+                >
+                <h1 style={{ color: "white", margin: 0 }}>Lavandería El Cobre</h1>
+                <p style={{ color: "white", margin: 0 }}>Panel de Control - Operadores</p>
+            </div>
 
-                {/* Filtros */}
-                <div className="card mb-6">
-                    <div className="grid grid-2">
-                        <div className="input-group">
-                            <label className="label">Filtrar por Fase</label>
+            {/* Filtros */}
+            <div className="card mb-6">
+                <div className="grid grid-2">
+                    <div className="input-group">
+                        <label className="label">Filtrar por Fase</label>
                             <select
                                 value={filtroFase}
                                 onChange={(e) => setFiltroFase(e.target.value)}
                                 className="select"
-                            >
+                            >    
                                 <option value="todas">Todas las fases</option>
                                 {fases.map(fase => (
                                     <option key={fase} value={fase}>
@@ -194,8 +234,8 @@ export default function Dashboard() {
                                 {/* Código y tipo */}
                                 <div className="comanda-header">
                                     <span className="comanda-codigo">{comanda.numeroOrden}</span>
-                                    <span className={`badge ${comanda.tipo === 'Empresa' ? 'badge-orange' : 'badge-indigo'}`}>
-                                        {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}
+                                    <span className={`badge ${comanda.collection === 'comandas_empresa_grupo_5' ? 'badge-orange' : 'badge-indigo'}`}>
+                                        {comanda.collection === 'comandas_empresa_grupo_5' ? '🏨 Empresa' : '👤 Particular'}
                                     </span>
                                 </div>
 
@@ -203,7 +243,7 @@ export default function Dashboard() {
                                 <div className="comanda-info">
                                     <p>
                                         <strong>
-                                            {comanda.tipo === 'Empresa' ? '🏨 Cliente: ' : '👤 Cliente: '}
+                                            {comanda.collection === 'comandas_empresa_grupo_5' ? '🏨 Cliente: ' : '👤 Cliente: '}
                                         </strong>
                                         {comanda.cliente.nombre}
                                     </p>
@@ -214,13 +254,13 @@ export default function Dashboard() {
 
                                 {/* Fase actual */}
                                 <div className="mb-3">
-                                    <span className={`badge ${getColorFase(comanda.faseActual || 'analisis')}`}>
+                                    <span className={`badge ${getColorFase(comanda.faseActual || 'analisis', comanda.estado)}`}>
                                         📍 {(comanda.faseActual || 'analisis').toUpperCase()}
                                     </span>
                                 </div>
 
                                 {/* Estado */}
-                                <div className="mb-3">
+                                <div className="mb-3" style={{ display: "none" }}>
                                     <span className={`badge ${comanda.estado === 'En proceso' ? 'badge-blue' : 'badge-secondary'}`}>
                                         {comanda.estado}
                                     </span>

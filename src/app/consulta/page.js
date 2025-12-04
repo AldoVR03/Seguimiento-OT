@@ -106,7 +106,7 @@ export default function ConsultaCliente() {
 
   const getColorEstado = (estado) => {
     if (estado === 'completado') return '#16a34a';
-    if (estado === 'en_proceso') return '#2563eb';
+    if (estado === 'en_proceso') return '#7f838bff';
     return '#9ca3af';
   };
 

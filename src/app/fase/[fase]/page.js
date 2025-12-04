@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { db } from '../../../lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -28,6 +28,24 @@ export default function FasePage({ params }) {
   const [tiempoEstimado, setTiempoEstimado] = useState('');
   const [enProceso, setEnProceso] = useState(false);
   const [horaInicio, setHoraInicio] = useState(null);
+  const [mostrarFormEncargado, setMostrarFormEncargado] = useState(false);
+  const [nuevoEncargado, setNuevoEncargado] = useState("");
+  const [encargadoSeleccionado, setEncargadoSeleccionado] = useState("");
+  const [encargados, setEncargados] = useState([]);
+
+
+  // Manejar selección de operario
+  const handleSelectEncargado = (e) => {
+  const nombre = e.target.value;
+  setEncargadoSeleccionado(nombre);
+
+  const encargado = encargados.find(o => o.nombre === nombre);
+
+  setNombreEncargado(nombre);
+  setCodigoEncargado(encargado ? encargado.codigo : '');
+};
+
+
 
   useEffect(() => {
     if (!authLoading) {
@@ -44,6 +62,55 @@ export default function FasePage({ params }) {
       cargarComanda();
     }
   }, [comandaId, collectionName, fase, user, userData]);
+
+  // Cargar encargados desde Firebase
+  useEffect(() => {
+    const cargarEncargados = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "encargados"));
+        const lista = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setEncargados(lista);
+      } catch (error) {
+        console.error("Error cargando encargados:", error);
+    }
+  };
+  cargarEncargados();
+  }, []);
+
+  // === AGREGAR ENCARGADO A FIREBASE ===
+  const agregarEncargado = async () => {
+    if (!nuevoEncargado.trim()) {
+      alert("Ingresa un nombre válido");
+      return;
+    }
+
+  try {
+    // Generar código para el encargado nuevo
+    const nuevoCodigo = `ENC-${String(encargados.length + 1).padStart(3, "0")}`;
+
+    const docRef = await addDoc(collection(db, "encargados"), {
+      nombre: nuevoEncargado.trim(),
+      codigo: nuevoCodigo
+    });
+
+    // Actualizar lista de encargados localmente
+    setEncargados([
+      ...encargados,
+      { id: docRef.id, nombre: nuevoEncargado.trim(), codigo: nuevoCodigo }
+    ]);
+
+    setNuevoEncargado("");
+    setMostrarFormEncargado(false);
+
+    alert("Encargado agregado correctamente");
+  } catch (error) {
+    console.error("Error agregando encargado:", error);
+    alert("No se pudo agregar el encargado");
+  }
+};
 
   const cargarComanda = async () => {
     try {
@@ -74,6 +141,10 @@ export default function FasePage({ params }) {
     e.preventDefault();
     if (!nombreEncargado || !codigoEncargado || !tiempoEstimado) {
       alert('Por favor completa todos los campos');
+      return;
+    }
+    if (tiempoEstimado < 5 || tiempoEstimado > 180) {
+      alert('El tiempo estimado debe estar entre 5 y 180 minutos');
       return;
     }
 
@@ -155,7 +226,7 @@ export default function FasePage({ params }) {
           updates.estado = 'Finalizado';
         }
       }
-
+    
       await updateDoc(docRef, updates);
 
       enviarNotificacionWhatsApp('completado', siguienteFase);
@@ -169,6 +240,57 @@ export default function FasePage({ params }) {
       setProcesando(false);
     }
   };
+
+  const retrocederFase = async () => {
+  if (!window.confirm('¿Seguro que deseas retroceder a la fase anterior?')) {
+    return;
+  }
+
+  const fases = ['analisis', 'lavado', 'planchado', 'embolsado', 'despacho'];
+
+  // Fase anterior
+  const indiceFaseActual = fases.indexOf(fase);
+  const faseAnterior = fases[indiceFaseActual - 1];
+
+  if (fase === 'analisis') {
+    alert("⚠ No puedes retroceder más. 'Análisis' es la primera fase.");
+    return;
+  }
+
+  setProcesando(true);
+
+  try {
+    const docRef = doc(db, collectionName, comandaId);
+
+    const updates = {
+      faseActual: faseAnterior,
+      [`fases.${fase}.estado`]: 'pendiente',
+      [`fases.${fase}.horaInicio`]: null,
+      [`fases.${fase}.horaFin`]: null,
+      [`fases.${fase}.tiempoReal`]: null,
+      [`fases.${fase}.encargado`]: null,
+      [`fases.${fase}.codigoEncargado`]: null,
+      [`fases.${fase}.tiempoEstimado`]: null,
+    };
+
+    if (fase === 'analisis') {
+      updates.estado = 'Pendiente';
+    }
+
+    await updateDoc(docRef, updates);
+
+    alert(`Retrocediste desde ${fase.toUpperCase()} hacia ${faseAnterior.toUpperCase()}`);
+
+    router.push(`/fase/${faseAnterior}?comandaId=${comandaId}&collection=${collectionName}`);
+
+  } catch (error) {
+    console.error('Error al retroceder fase:', error);
+    alert('No se pudo retroceder la fase');
+  } finally {
+    setProcesando(false);
+  }
+};
+
 
   const calcularTiempoReal = (inicio, fin) => {
     const diff = new Date(fin) - new Date(inicio);
@@ -207,16 +329,38 @@ export default function FasePage({ params }) {
     window.open(url, '_blank');
   };
 
-  const getColorFase = (fase) => {
-    const colores = {
-      analisis: 'fase-analisis',
-      lavado: 'fase-lavado',
-      planchado: 'fase-planchado',
-      embolsado: 'fase-embolsado',
-      despacho: 'fase-despacho'
+  const getColorFase = (fase, estado) => {
+    const clasesActivas = {
+      analisis: 'badge-green',
+      lavado: 'badge-green',
+      planchado: 'badge-green',
+      embolsado: 'badge-green',
+      despacho: 'badge-green'
     };
-    return colores[fase] || 'bg-gray-500';
+
+    const clasesPendiente = {
+      analisis: 'badge-gray',
+      lavado: 'badge-gray',
+      planchado: 'badge-gray',
+      embolsado: 'badge-gray',
+      despacho: 'badge-gray'
+    };
+
+    // NORMALIZAMOS EL ESTADO (lo pasamos a minúsculas)
+    const est = (estado || "").toLowerCase();
+
+    // Cualquier estado que signifique "NO INICIADO"
+    const estadosPendientes = [
+      "", "pendiente", "no-iniciada", "no iniciada", "sin iniciar", "no asignada"
+    ];
+
+    const isPendiente = estadosPendientes.includes(est);
+
+    return isPendiente
+      ? clasesPendiente[fase] || 'badge-gray'
+      : clasesActivas[fase] || 'badge-green';
   };
+
 
   if (authLoading) {
     return (
@@ -255,14 +399,14 @@ export default function FasePage({ params }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', background: '#FFE9D6', padding: '20px' }}>
       <div className="container-small">
         {/* Header */}
         <div className="mb-6">
           <Link href="/panel" style={{ display: 'inline-block', marginBottom: '15px' }}>
             ← Volver al Panel
           </Link>
-          <div className={`fase-header ${getColorFase(fase)}`}>
+          <div className="fase-header" style={{ background: enProceso ? '#BBF7D0' : '#7f838bff', padding: '20px', borderRadius: '12px', marginBottom: '20px'}}>
             <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>
               {fase ? fase.toUpperCase() : 'CARGANDO...'}
             </h1>
@@ -274,7 +418,7 @@ export default function FasePage({ params }) {
         <div className="card mb-6">
           <h2>Información de la Comanda</h2>
           <div className="info-box">
-            <p><strong>Tipo:</strong> {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}</p>
+            <p><strong>Tipo:</strong> {collectionName === 'comandas_empresa_grupo_5' ? '🏨 Empresa' : '👤 Particular'}</p>
             <p><strong>Cliente:</strong> {comanda.cliente.nombre}</p>
             <p><strong>Teléfono:</strong> {comanda.cliente.telefono}</p>
             <p><strong>Prendas:</strong> {comanda.prendas.length} items</p>
@@ -285,31 +429,64 @@ export default function FasePage({ params }) {
         {!enProceso ? (
           <div className="card">
             <h2>Iniciar Fase</h2>
-            <form onSubmit={iniciarFase} className="space-y">
+         <form onSubmit={iniciarFase} className="space-y">
+
+            {/* SOLO mostrar encargado si NO es DESPACHO */}
+            {fase !== 'despacho' && (
               <div className="input-group">
-                <label className="label">Nombre del Encargado *</label>
+                <label className="label">Seleccionar Encargado *</label>
+                <select
+                  className="input"
+                  onChange={handleSelectEncargado}
+                  required
+                >
+                  <option value="">Selecciona…</option>
+                  {encargados.map((enc) => (
+                    <option key={enc.codigo} value={enc.nombre}>
+                      {enc.nombre} ({enc.codigo})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+              <button
+                  type="button"
+                  className="btn-agregar"
+                  onClick={() => setMostrarFormEncargado(true)}
+                >
+                  <span className='icon'>👤</span>
+                  ➕ Agregar Encargado
+                </button>
+                {mostrarFormEncargado && (
+                  <div className='form-encargado'>
+                    <label className="label">Nombre Completo</label>
+                      <input type="text" className="input" placeholder="Ej: Juan Pérez" value={nuevoEncargado} onChange={(e) => setNuevoEncargado(e.target.value)}/>
+                  <button type='button' className='btn-guardar' onClick={agregarEncargado} >
+                    Guardar
+                  </button>
+                  <button type='button' className='btn-cancelar' onClick={() => setMostrarFormEncargado(false)}>
+                    Cancelar
+                  </button>
+                  </div>
+                )}
+                
+              {/* CAMPO DINÁMICO:
+                - Si NO es despacho - Tiempo estimado
+                - Si ES despacho - Patente del vehículo
+              */}
+            {fase === 'despacho' ? (
+              <div className="input-group">
+                <label className="label">Patente del vehículo *</label>
                 <input
                   type="text"
-                  value={nombreEncargado}
-                  onChange={(e) => setNombreEncargado(e.target.value)}
+                  placeholder="Ej: ABCD-12"
+                  value={tiempoEstimado}
+                  onChange={(e) => setTiempoEstimado(e.target.value)}
                   className="input"
-                  placeholder="Juan Pérez"
                   required
                 />
               </div>
-
-              <div className="input-group">
-                <label className="label">Código del Encargado *</label>
-                <input
-                  type="text"
-                  value={codigoEncargado}
-                  onChange={(e) => setCodigoEncargado(e.target.value)}
-                  className="input"
-                  placeholder="ENC001"
-                  required
-                />
-              </div>
-
+            ) : (
               <div className="input-group">
                 <label className="label">Tiempo Estimado (minutos) *</label>
                 <input
@@ -317,24 +494,34 @@ export default function FasePage({ params }) {
                   value={tiempoEstimado}
                   onChange={(e) => setTiempoEstimado(e.target.value)}
                   className="input"
-                  placeholder="30"
                   min="1"
+                  max="360"
+                  placeholder="30"
                   required
                 />
               </div>
-
-              <button
-                type="submit"
-                disabled={procesando}
-                className={`btn btn-full ${getColorFase(fase)}`}
-                style={{ color: 'white' }}
+            )}
+            <button
+              onClick={retrocederFase}
+              disabled={procesando}
+              className="btn btn-warning btn-full"
+              style={{ marginBottom: '10px' }}
               >
-                {procesando ? '⏳ Iniciando...' : '▶️ Iniciar Fase'}
-              </button>
-            </form>
-          </div>
+              ⬅️ Retroceder a Fase Anterior
+            </button>
+            <button
+              type="submit"
+              disabled={procesando}
+              className="btn btn-full"
+              style={{background: enProceso ? '#BBF7D0' : '#E5E7EB', color: enProceso ? '#065f46' : '#4b5563'}}
+            >
+              {procesando ? '⏳ Iniciando...' : '▶️ Iniciar Fase'}
+            </button>
+          </form>
+        </div>
+
         ) : (
-          <div className="card">
+          <div className="card" style={{ background: '#BBF7D0' }}>
             <h2>Fase en Proceso</h2>
             <div className="info-box mb-6">
               <p><strong>👨‍💼 Encargado:</strong> {nombreEncargado}</p>
@@ -342,7 +529,14 @@ export default function FasePage({ params }) {
               <p><strong>⏱️ Tiempo estimado:</strong> {tiempoEstimado} minutos</p>
               <p><strong>🕐 Hora de inicio:</strong> {new Date(horaInicio).toLocaleTimeString('es-CL')}</p>
             </div>
-
+            <button
+              onClick={retrocederFase}
+              disabled={procesando}
+              className="btn btn-warning btn-full"
+              style={{ marginBottom: '10px' }}
+              >
+              ⬅️ Retroceder a Fase Anterior
+            </button>
             <button
               onClick={finalizarFase}
               disabled={procesando}
