@@ -8,6 +8,26 @@ import { useAuth } from '../../../context/AuthContext';
 
 export const dynamic = 'force-dynamic';
 
+// === VALIDACIONES ===
+
+
+const enviarMensajeWhatsApp = (telefono, mensaje) => {
+  if (!telefono) return;
+
+  // Eliminar espacios, +56 repetido, guiones, etc.
+  const limpio = telefono.replace(/\D/g, "");
+
+  // Asegurar formato chileno estándar
+  let numero = limpio.startsWith("56") ? limpio : "56" + limpio;
+
+  const texto = encodeURIComponent(mensaje);
+  const url = `https://wa.me/${numero}?text=${texto}`;
+
+  window.open(url, "_blank");
+};
+
+
+
 export default function FasePage({ params }) {
   const { user, userData, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
@@ -32,6 +52,7 @@ export default function FasePage({ params }) {
   const [nuevoEncargado, setNuevoEncargado] = useState("");
   const [encargadoSeleccionado, setEncargadoSeleccionado] = useState("");
   const [encargados, setEncargados] = useState([]);
+  const [patente, setPatente] = useState('');
 
 
   // Manejar selección de operario
@@ -67,7 +88,7 @@ export default function FasePage({ params }) {
   useEffect(() => {
     const cargarEncargados = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "encargados"));
+        const snapshot = await getDocs(collection(db, "encargados_seguimiento_1"));
         const lista = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -80,26 +101,35 @@ export default function FasePage({ params }) {
   cargarEncargados();
   }, []);
 
+  
   // === AGREGAR ENCARGADO A FIREBASE ===
   const agregarEncargado = async () => {
-    if (!nuevoEncargado.trim()) {
+    const nombre = nuevoEncargado.trim();
+
+    if (!nombre) {
       alert("Ingresa un nombre válido");
       return;
     }
 
-  try {
-    // Generar código para el encargado nuevo
-    const nuevoCodigo = `ENC-${String(encargados.length + 1).padStart(3, "0")}`;
+    // Validar formato del nombre con la misma regla
+    if (!validarNombre(nombre)) {
+      alert("El nombre del encargado no es válido. Debe tener al menos 2 palabras y cada palabra iniciar con mayúscula. Ej: Juan Pérez");
+      return;
+    }
 
-    const docRef = await addDoc(collection(db, "encargados"), {
-      nombre: nuevoEncargado.trim(),
-      codigo: nuevoCodigo
+    try {
+      // Generar código para el encargado nuevo
+      const nuevoCodigo = `ENC-${String(encargados.length + 1).padStart(3, "0")}`;
+
+      const docRef = await addDoc(collection(db, "encargados_seguimiento_1"), {
+        nombre,
+        codigo: nuevoCodigo
     });
 
-    // Actualizar lista de encargados localmente
+      // Actualizar lista de encargados localmente
     setEncargados([
       ...encargados,
-      { id: docRef.id, nombre: nuevoEncargado.trim(), codigo: nuevoCodigo }
+      { id: docRef.id, nombre, codigo: nuevoCodigo }
     ]);
 
     setNuevoEncargado("");
@@ -111,6 +141,11 @@ export default function FasePage({ params }) {
     alert("No se pudo agregar el encargado");
   }
 };
+
+  const validarNombre = (nombre) => {
+    const patron = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+$/;
+    return patron.test(nombre.trim());
+  };
 
   const cargarComanda = async () => {
     try {
@@ -139,15 +174,32 @@ export default function FasePage({ params }) {
 
   const iniciarFase = async (e) => {
     e.preventDefault();
-    if (!nombreEncargado || !codigoEncargado || !tiempoEstimado) {
-      alert('Por favor completa todos los campos');
-      return;
+
+    if (fase !== 'despacho') {
+      if (!nombreEncargado || !codigoEncargado || !tiempoEstimado) {
+        alert('Por favor completa todos los campos');
+        return;
+      }
+
+      if (!validarNombre(nombreEncargado)) {
+        alert("El nombre del encargado no es válido. Ejemplo: Juan Pérez / Ana María / Pedro José");
+        return;
+      }
     }
+
     if (tiempoEstimado < 5 || tiempoEstimado > 180) {
       alert('El tiempo estimado debe estar entre 5 y 180 minutos');
       return;
     }
+    if (fase === 'despacho') {
+      if (!patente || !validarPatente(patente)) {
+        alert("La patente no es válida. Formato: AAAA11");
+        return;
+      }
+    }
 
+
+    
     setProcesando(true);
     try {
       const docRef = doc(db, collectionName, comandaId);
@@ -155,11 +207,19 @@ export default function FasePage({ params }) {
 
       const updates = {
         [`fases.${fase}.estado`]: 'en_proceso',
-        [`fases.${fase}.encargado`]: nombreEncargado,
-        [`fases.${fase}.codigoEncargado`]: codigoEncargado,
         [`fases.${fase}.tiempoEstimado`]: parseInt(tiempoEstimado),
         [`fases.${fase}.horaInicio`]: ahora,
       };
+
+      if (fase !== 'despacho') {
+        updates[`fases.${fase}.encargado`] = nombreEncargado;
+        updates[`fases.${fase}.codigoEncargado`] = codigoEncargado;
+      }
+
+      if (fase === 'despacho') {
+        updates[`fases.${fase}.patente`] = patente;
+      }
+
 
       // Si iniciamos análisis, cambiamos estado global a "En proceso"
       if (fase === 'analisis') {
@@ -167,6 +227,56 @@ export default function FasePage({ params }) {
       }
 
       await updateDoc(docRef, updates);
+
+      // === MENSAJE AUTOMÁTICO ===
+      let mensaje = "";
+
+      // Verifica si es despacho
+      const esDespacho = comanda.fase === "despacho"; // Cambia "tipo" por el campo real que ocupas
+
+      switch (fase) {
+        case "analisis":
+          mensaje = `👕 Tu comanda N°${comanda.numeroOrden} ha sido recibida en Lavandería El Cobre.`;
+        break;
+
+        case "lavado":
+          mensaje = `💧 Tu comanda N°${comanda.numeroOrden} está en proceso de lavado, Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre.`;
+        break;
+
+        case "secado":
+          mensaje = `🔥 Tu comanda N°${comanda.numeroOrden} está en secado, Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre.`;
+        break;
+
+        case "planchado":
+          mensaje = `🧼 Tu comanda N°${comanda.numeroOrden} está siendo planchada, Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre.`;
+        break;
+
+        case "embolsado":
+          mensaje = `📦 Tu comanda N°${comanda.numeroOrden} está siendo embolsada, Tiempo estimado: ${tiempoEstimado} minutos. - Lavandería El Cobre.`;
+        break;
+
+        case "despacho":
+        // SOLO se envía si el tipo de comanda es despacho
+        if (esDespacho) {
+          mensaje = `🚚 Tu comanda N°${comanda.numeroOrden} fue despachada.\nVehículo: ${patente}`;
+        } else {
+            mensaje = `✔️ Tu comanda N°${comanda.numeroOrden} está lista para retirar.`; // caso contrario
+        }
+        break;
+
+        case "finalizado":
+        // Si es despacho, NO debe mandar este mensaje
+        if (!esDespacho) {
+          mensaje = `✔️ Tu comanda N°${comanda.numeroOrden} está lista para retirar.`;
+        } else {
+          mensaje = `🚚 Tu comanda N°${comanda.numeroOrden} fue despachada.\nVehículo: ${patente}`;
+        }
+        break;
+        }
+        if (mensaje && comanda?.telefono) {
+          enviarMensajeWhatsApp(comanda.telefono, mensaje);
+      }
+
 
       setEnProceso(true);
       setHoraInicio(ahora);
@@ -181,6 +291,8 @@ export default function FasePage({ params }) {
     } finally {
       setProcesando(false);
     }
+
+
   };
 
   const finalizarFase = async () => {
@@ -271,6 +383,7 @@ export default function FasePage({ params }) {
       [`fases.${fase}.encargado`]: null,
       [`fases.${fase}.codigoEncargado`]: null,
       [`fases.${fase}.tiempoEstimado`]: null,
+      [`fases.${fase}.patente`]: null,
     };
 
     if (fase === 'analisis') {
@@ -432,43 +545,53 @@ export default function FasePage({ params }) {
          <form onSubmit={iniciarFase} className="space-y">
 
             {/* SOLO mostrar encargado si NO es DESPACHO */}
-            {fase !== 'despacho' && (
-              <div className="input-group">
-                <label className="label">Seleccionar Encargado *</label>
-                <select
-                  className="input"
-                  onChange={handleSelectEncargado}
-                  required
-                >
-                  <option value="">Selecciona…</option>
-                  {encargados.map((enc) => (
-                    <option key={enc.codigo} value={enc.nombre}>
-                      {enc.nombre} ({enc.codigo})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-              <button
+            {fase !== "despacho" && (
+              <>
+                <div className="form-group">
+                  <label>Encargado</label>
+                  <select
+                    className="form-control"
+                    value={encargadoSeleccionado}
+                    onChange={handleSelectEncargado}
+                  >
+                  <option value="">Selecciona un encargado</option>
+                    {encargados.map((e) => (
+                      <option key={e.id} value={e.nombre}>
+                        {e.nombre} ({e.codigo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  className="btn btn-secondary"
                   type="button"
-                  className="btn-agregar"
                   onClick={() => setMostrarFormEncargado(true)}
                 >
-                  <span className='icon'>👤</span>
-                  ➕ Agregar Encargado
+                  + Agregar encargado
                 </button>
+
                 {mostrarFormEncargado && (
-                  <div className='form-encargado'>
-                    <label className="label">Nombre Completo</label>
-                      <input type="text" className="input" placeholder="Ej: Juan Pérez" value={nuevoEncargado} onChange={(e) => setNuevoEncargado(e.target.value)}/>
-                  <button type='button' className='btn-guardar' onClick={agregarEncargado} >
-                    Guardar
-                  </button>
-                  <button type='button' className='btn-cancelar' onClick={() => setMostrarFormEncargado(false)}>
-                    Cancelar
-                  </button>
+                  <div className="form-group">
+                    <label>Nuevo encargado</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={nuevoEncargado}
+                      onChange={(e) => setNuevoEncargado(e.target.value)}
+                    />
+                    <button
+                      className="btn btn-primary mt-2"
+                      type="button"
+                      onClick={agregarEncargado}
+                    >
+                      Guardar encargado
+                    </button>
                   </div>
                 )}
+              </>
+            )}
+
                 
               {/* CAMPO DINÁMICO:
                 - Si NO es despacho - Tiempo estimado
@@ -479,10 +602,10 @@ export default function FasePage({ params }) {
                 <label className="label">Patente del vehículo *</label>
                 <input
                   type="text"
-                  placeholder="Ej: ABCD-12"
-                  value={tiempoEstimado}
-                  onChange={(e) => setTiempoEstimado(e.target.value)}
                   className="input"
+                  placeholder="Ej: AB12CD"
+                  value={patente}
+                  onChange={(e) => setPatente(e.target.value.toUpperCase())}
                   required
                 />
               </div>
@@ -528,6 +651,9 @@ export default function FasePage({ params }) {
               <p><strong>🆔 Código:</strong> {codigoEncargado}</p>
               <p><strong>⏱️ Tiempo estimado:</strong> {tiempoEstimado} minutos</p>
               <p><strong>🕐 Hora de inicio:</strong> {new Date(horaInicio).toLocaleTimeString('es-CL')}</p>
+              {fase === 'despacho' && comanda.fases?.despacho?.patente && (
+                <p><strong>Patente:</strong> {comanda.fases.despacho.patente}</p>
+                )}
             </div>
             <button
               onClick={retrocederFase}
