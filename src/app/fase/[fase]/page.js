@@ -547,14 +547,14 @@ export default function FasePage({ params }) {
             {/* SOLO mostrar encargado si NO es DESPACHO */}
             {fase !== "despacho" && (
               <>
-                <div className="form-group">
-                  <label>Encargado</label>
+                <div className="input-group">
+                  <label className='label'>Seleccionar Encargado *</label>
                   <select
-                    className="form-control"
+                    className="input"
                     value={encargadoSeleccionado}
                     onChange={handleSelectEncargado}
                   >
-                  <option value="">Selecciona un encargado</option>
+                  <option value="">Seleccionar ... </option>
                     {encargados.map((e) => (
                       <option key={e.id} value={e.nombre}>
                         {e.nombre} ({e.codigo})
@@ -564,28 +564,36 @@ export default function FasePage({ params }) {
                 </div>
 
                 <button
-                  className="btn btn-secondary"
+                  className="btn-agregar"
                   type="button"
                   onClick={() => setMostrarFormEncargado(true)}
                 >
-                  + Agregar encargado
+                  ➕ Agregar Encargado
                 </button>
 
                 {mostrarFormEncargado && (
-                  <div className="form-group">
-                    <label>Nuevo encargado</label>
+                  <div className="form-encargado">
+                    <label className='label'>Nombre Completo del Encargado</label>
                     <input
                       type="text"
-                      className="form-control"
+                      className="input"
+                      placeholder='Ej: Juan Pérez'
                       value={nuevoEncargado}
                       onChange={(e) => setNuevoEncargado(e.target.value)}
                     />
                     <button
-                      className="btn btn-primary mt-2"
+                      className="btn-guardar"
                       type="button"
                       onClick={agregarEncargado}
                     >
                       Guardar encargado
+                    </button>
+                    <button
+                      type='button'
+                      className='btn-cancelar'
+                      onClick={() => setMostrarFormEncargado(false)}
+                    >
+                      Cancelar encargado
                     </button>
                   </div>
                 )}
