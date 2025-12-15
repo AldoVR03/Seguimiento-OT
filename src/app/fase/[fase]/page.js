@@ -142,7 +142,10 @@ export default function FasePage({ params }) {
   }
 };
 
-  
+  const validarNombre = (nombre) => {
+    const patron = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+$/;
+    return patron.test(nombre.trim());
+  };
 
   const cargarComanda = async () => {
     try {
