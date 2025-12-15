@@ -14,6 +14,7 @@ export default function ConsultaCliente() {
   const [codigo, setCodigo] = useState('');
   const [comanda, setComanda] = useState(null);
   const [buscando, setBuscando] = useState(false);
+  const collectionName = searchParams.get('collection');
   const [error, setError] = useState('');
 
   useEffect(() => {
