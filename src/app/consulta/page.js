@@ -179,9 +179,9 @@ export default function ConsultaCliente() {
             <div style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '20px', marginBottom: '25px' }}>
               <div className="flex-between" style={{ marginBottom: '15px' }}>
                 <h2 style={{ fontSize: '2rem', margin: 0 }}>{comanda.numeroOrden}</h2>
-                <span className={`badge ${comanda.tipo === 'Empresa' ? 'badge-orange' : 'badge-indigo'}`}
+                <span className={`badge ${comanda.tipo === 'comandas_empresa_grupo_5' ? 'badge-orange' : 'badge-indigo'}`}
                   style={{ fontSize: '1rem', padding: '8px 16px' }}>
-                  {comanda.tipo === 'Empresa' ? '🏨 Empresa' : '👤 Particular'}
+                  {comanda.tipo === 'comandas_empresa_grupo_5' ? '🏨 Empresa' : '👤 Particular'}
                 </span>
               </div>
 
